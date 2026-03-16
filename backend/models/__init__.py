@@ -25,7 +25,7 @@ class Agent(Base):
     ai_provider = Column(String, default="openai")
     ai_model = Column(String, default="gpt-4o")
     ai_api_key = Column(String, nullable=True)
-    context_memory = Column(Integer, default=15)
+    context_memory = Column(Integer, default=5)
     delay_min = Column(Integer, default=3)
     delay_max = Column(Integer, default=15)
     is_active = Column(Boolean, default=True)

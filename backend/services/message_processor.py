@@ -138,7 +138,7 @@ async def process_incoming(data: dict) -> None:
         )
         history_rows = list(reversed(history_result.scalars().all()))
         message_history = [
-            {"role": "assistant" if m.direction == "outgoing" else "user", "content": m.content}
+            {"role": "assistant" if m.direction == "outgoing" else "user", "content": m.content[:500]}
             for m in history_rows[:-1]  # exclude the message we just added
         ]
 
