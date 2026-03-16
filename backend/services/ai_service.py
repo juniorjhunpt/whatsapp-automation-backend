@@ -12,7 +12,18 @@ COSTS = {
     "deepseek": {"deepseek-chat": 0.00014},
     "groq": {"llama-3.3-70b-versatile": 0.0, "mixtral-8x7b-32768": 0.0},
     "minimax": {"abab6.5s-chat": 0.001},
-    "openrouter": {"default": 0.001},
+    "openrouter": {
+        "openai/gpt-4o": 0.005,
+        "openai/gpt-4o-mini": 0.00015,
+        "openai/gpt-3.5-turbo": 0.0005,
+        "anthropic/claude-3-haiku": 0.00025,
+        "anthropic/claude-3-sonnet": 0.003,
+        "google/gemini-flash-1.5": 0.000075,
+        "google/gemini-pro-1.5": 0.00125,
+        "deepseek/deepseek-chat": 0.00014,
+        "meta-llama/llama-3.1-8b-instruct:free": 0.0,
+        "default": 0.00015,
+    },
 }
 
 PROVIDER_URLS = {
@@ -55,7 +66,8 @@ async def get_ai_response(
 
     elapsed_ms = int((time.monotonic() - start) * 1000)
     tokens = result.get("tokens_used", 0)
-    cost_per_1k = COSTS.get(provider, {}).get(model, 0.001)
+    provider_costs = COSTS.get(provider, {})
+    cost_per_1k = provider_costs.get(model, provider_costs.get("default", 0.00015))
     cost = (tokens / 1000) * cost_per_1k
 
     return {
