@@ -1,12 +1,13 @@
 import os
 import pyotp
 import secrets
+import hashlib
+import bcrypt as _bcrypt_lib
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,13 +21,7 @@ SECRET_KEY = os.getenv("JWT_SECRET", "changeme-use-a-real-secret-in-production-p
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
-import hashlib
 
-# Use SHA256 to avoid bcrypt 72-byte limit
-def _sha(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
@@ -61,11 +56,15 @@ class TokenOut(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _sha256(password: str) -> bytes:
+    """Pre-hash to avoid bcrypt 72-byte limit."""
+    return hashlib.sha256(password.encode()).digest()
+
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(_sha(plain), hashed)
+    return _bcrypt_lib.checkpw(_sha256(plain), hashed.encode())
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(_sha(password))
+    return _bcrypt_lib.hashpw(_sha256(password), _bcrypt_lib.gensalt()).decode()
 
 def create_token(data: dict, expires_hours: int = ACCESS_TOKEN_EXPIRE_HOURS) -> str:
     payload = data.copy()
