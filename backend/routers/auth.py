@@ -20,6 +20,12 @@ SECRET_KEY = os.getenv("JWT_SECRET", "changeme-use-a-real-secret-in-production-p
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
+import hashlib
+
+# Use SHA256 to avoid bcrypt 72-byte limit
+def _sha(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
@@ -56,10 +62,10 @@ class TokenOut(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return pwd_context.verify(_sha(plain), hashed)
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(_sha(password))
 
 def create_token(data: dict, expires_hours: int = ACCESS_TOKEN_EXPIRE_HOURS) -> str:
     payload = data.copy()
