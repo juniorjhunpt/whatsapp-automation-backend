@@ -29,6 +29,11 @@ async def redis_event_loop():
         if channel == "whatsapp:qr":
             instance_id = data.get("instanceId")
             logger.info(f"QR code received for {instance_id}")
+            # Cache QR in Redis for polling fallback (TTL 90s)
+            from services.redis_service import get_redis
+            r = await get_redis()
+            await r.setex(f"wahub:qr:{instance_id}", 90, data.get("qr", ""))
+            await r.setex(f"wahub:status:{instance_id}", 300, "qr")
             await ws_manager.broadcast("qr_code", data)
 
         elif channel == "whatsapp:status":
@@ -50,6 +55,13 @@ async def redis_event_loop():
                     if status == "connected":
                         conn.last_connected_at = datetime.utcnow()
                     await db.commit()
+
+            # Update status in Redis for polling
+            from services.redis_service import get_redis
+            r = await get_redis()
+            await r.setex(f"wahub:status:{instance_id}", 300, status or "disconnected")
+            if status == "connected" and data.get("phone"):
+                await r.setex(f"wahub:phone:{instance_id}", 3600, data["phone"])
 
             await ws_manager.broadcast("connection_status", data)
 

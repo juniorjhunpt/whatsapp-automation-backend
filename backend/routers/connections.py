@@ -44,6 +44,15 @@ async def delete_connection(conn_id: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
     return {"ok": True}
 
+@router.get("/qr/{instance_id}")
+async def get_qr(instance_id: str):
+    """Poll endpoint — returns latest QR code for an instance from Redis."""
+    from services.redis_service import get_redis
+    r = await get_redis()
+    qr = await r.get(f"wahub:qr:{instance_id}")
+    status = await r.get(f"wahub:status:{instance_id}")
+    return {"instanceId": instance_id, "qr": qr, "status": status or "connecting"}
+
 @router.post("/{conn_id}/reconnect")
 async def reconnect(conn_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Connection).where(Connection.id == conn_id))
