@@ -47,7 +47,7 @@ async def get_metrics(db: AsyncSession = Depends(get_db)):
     return {
         "messages_today": today_count.scalar() or 0,
         "tokens_today": tokens_today.scalar() or 0,
-        "cost_today": round((cost_today.scalar() or 0.0) * 100, 2),  # in cents
+        "cost_today": round(float(cost_today.scalar() or 0.0), 6),  # in USD
         "avg_response_time": int(avg_rt.scalar() or 0),
         "failed_messages": errors.scalar() or 0,
         "total_conversations": total_convs.scalar() or 0,
