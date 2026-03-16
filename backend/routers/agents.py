@@ -138,6 +138,26 @@ async def delete_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
     return {"ok": True}
 
+@router.post("/{agent_id}/link")
+async def link_connection(agent_id: str, body: dict, db: AsyncSession = Depends(get_db)):
+    """Link or unlink a WhatsApp connection to an agent."""
+    result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    agent = result.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+    connection_id = body.get("connection_id")
+    if connection_id:
+        from models import Connection
+        r = await db.execute(select(Connection).where(Connection.id == connection_id))
+        conn = r.scalar_one_or_none()
+        if not conn:
+            raise HTTPException(404, "Connection not found")
+        agent.instance_id = conn.instance_id
+    else:
+        agent.instance_id = None
+    await db.commit()
+    return {"ok": True, "instance_id": agent.instance_id}
+
 @router.post("/{agent_id}/toggle")
 async def toggle_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Agent).where(Agent.id == agent_id))
