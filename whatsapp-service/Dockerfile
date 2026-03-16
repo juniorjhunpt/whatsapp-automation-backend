@@ -10,8 +10,7 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 RUN apk add --no-cache vips-dev git
-COPY package*.json ./
-RUN npm install --production
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 RUN mkdir -p sessions
 EXPOSE 3001
