@@ -8,3 +8,5 @@ whatsapp-service/dist/
 whatsapp-service/sessions/
 *.log
 .DS_Store
+backup-data/
+*.tar.gz
