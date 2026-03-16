@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+backend/data/
+whatsapp-service/node_modules/
+whatsapp-service/dist/
+whatsapp-service/sessions/
+*.log
+.DS_Store
