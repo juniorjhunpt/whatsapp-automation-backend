@@ -6,6 +6,16 @@ from database import Base
 def gen_id():
     return str(uuid.uuid4())
 
+class User(Base):
+    __tablename__ = "users"
+    id = Column(String, primary_key=True, default=gen_id)
+    username = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    totp_secret = Column(String, nullable=True)
+    totp_enabled = Column(Boolean, default=False)
+    recovery_codes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
 class Agent(Base):
     __tablename__ = "agents"
     id = Column(String, primary_key=True, default=gen_id)

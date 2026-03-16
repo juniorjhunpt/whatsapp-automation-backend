@@ -12,6 +12,7 @@ from config import settings
 from database import init_db, AsyncSessionLocal
 from models import Connection
 from routers import agents, connections, conversations, metrics, settings as settings_router
+from routers.auth import router as auth_router, hash_password
 from services.redis_service import subscribe_forever
 from services.websocket_manager import ws_manager
 from services.message_processor import process_incoming
@@ -86,6 +87,18 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Initializing database...")
     await init_db()
+    # Create default admin user if none exists
+    import os as _os
+    from models import User as _User
+    async with AsyncSessionLocal() as _db:
+        from sqlalchemy import select as _select
+        _res = await _db.execute(_select(_User))
+        if not _res.scalars().first():
+            _pw = _os.getenv("ADMIN_PASSWORD", "wahub2024")
+            _user = _User(username="admin", password_hash=hash_password(_pw))
+            _db.add(_user)
+            await _db.commit()
+            logger.info(f"Utilizador admin criado — password: {_pw}")
     logger.info("Starting Redis event listener...")
     task = asyncio.create_task(redis_event_loop())
     yield
@@ -109,6 +122,7 @@ app.add_middleware(
 )
 
 # Routers
+app.include_router(auth_router)
 app.include_router(agents.router)
 app.include_router(connections.router)
 app.include_router(conversations.router)
