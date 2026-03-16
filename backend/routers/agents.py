@@ -4,42 +4,129 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from database import get_db
 from models import Agent
-from schemas import AgentCreate, AgentUpdate, AgentOut
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
-@router.get("", response_model=list[AgentOut])
+class AgentIn(BaseModel):
+    name: str
+    prompt: str
+    # Support both frontend and backend field names
+    api_provider: Optional[str] = None
+    ai_provider: Optional[str] = None
+    model: Optional[str] = None
+    ai_model: Optional[str] = None
+    api_key: Optional[str] = None
+    ai_api_key: Optional[str] = None
+    instance_id: Optional[str] = None
+    connection_id: Optional[str] = None  # UUID of Connection to link
+    is_active: Optional[bool] = True
+    context_memory: Optional[int] = 15
+    delay_min: Optional[int] = 3
+    delay_max: Optional[int] = 15
+
+class AgentOut(BaseModel):
+    id: str
+    name: str
+    prompt: str
+    api_provider: str
+    model: str
+    is_active: bool
+    connection_id: Optional[str] = None
+    instance_id: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+def agent_to_out(a: Agent) -> dict:
+    return {
+        "id": a.id,
+        "name": a.name,
+        "prompt": a.prompt,
+        "api_provider": a.ai_provider or "openai",
+        "model": a.ai_model or "gpt-4o",
+        "is_active": a.is_active,
+        "connection_id": getattr(a, 'connection_id', None),
+        "instance_id": a.instance_id,
+        "created_at": a.created_at,
+    }
+
+@router.get("")
 async def list_agents(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Agent).order_by(Agent.created_at.desc()))
-    return result.scalars().all()
+    return [agent_to_out(a) for a in result.scalars().all()]
 
-@router.post("", response_model=AgentOut)
-async def create_agent(body: AgentCreate, db: AsyncSession = Depends(get_db)):
-    agent = Agent(id=str(uuid.uuid4()), **body.model_dump())
+@router.post("")
+async def create_agent(body: AgentIn, db: AsyncSession = Depends(get_db)):
+    agent = Agent(
+        id=str(uuid.uuid4()),
+        name=body.name,
+        prompt=body.prompt,
+        ai_provider=body.api_provider or body.ai_provider or "openai",
+        ai_model=body.model or body.ai_model or "gpt-4o",
+        ai_api_key=body.api_key or body.ai_api_key,
+        instance_id=body.instance_id,
+        is_active=body.is_active if body.is_active is not None else True,
+        context_memory=body.context_memory or 15,
+        delay_min=body.delay_min or 3,
+        delay_max=body.delay_max or 15,
+    )
+    # Store connection_id in instance_id field if provided (lookup connection)
+    if body.connection_id:
+        from models import Connection
+        r = await db.execute(select(Connection).where(Connection.id == body.connection_id))
+        conn = r.scalar_one_or_none()
+        if conn:
+            agent.instance_id = conn.instance_id
     db.add(agent)
     await db.commit()
     await db.refresh(agent)
-    return agent
+    return agent_to_out(agent)
 
-@router.get("/{agent_id}", response_model=AgentOut)
+@router.get("/{agent_id}")
 async def get_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Agent).where(Agent.id == agent_id))
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(404, "Agent not found")
-    return agent
+    return agent_to_out(agent)
 
-@router.put("/{agent_id}", response_model=AgentOut)
-async def update_agent(agent_id: str, body: AgentUpdate, db: AsyncSession = Depends(get_db)):
+@router.put("/{agent_id}")
+async def update_agent(agent_id: str, body: AgentIn, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Agent).where(Agent.id == agent_id))
     agent = result.scalar_one_or_none()
     if not agent:
         raise HTTPException(404, "Agent not found")
-    for k, v in body.model_dump().items():
-        setattr(agent, k, v)
+    
+    if body.name: agent.name = body.name
+    if body.prompt: agent.prompt = body.prompt
+    if body.api_provider or body.ai_provider:
+        agent.ai_provider = body.api_provider or body.ai_provider
+    if body.model or body.ai_model:
+        agent.ai_model = body.model or body.ai_model
+    if body.api_key or body.ai_api_key:
+        agent.ai_api_key = body.api_key or body.ai_api_key
+    if body.is_active is not None:
+        agent.is_active = body.is_active
+
+    # Link WhatsApp connection
+    if body.connection_id:
+        from models import Connection
+        r = await db.execute(select(Connection).where(Connection.id == body.connection_id))
+        conn = r.scalar_one_or_none()
+        if conn:
+            agent.instance_id = conn.instance_id
+
     await db.commit()
     await db.refresh(agent)
-    return agent
+    out = agent_to_out(agent)
+    # Return connection_id from the body for display
+    if body.connection_id:
+        out['connection_id'] = body.connection_id
+    return out
 
 @router.delete("/{agent_id}")
 async def delete_agent(agent_id: str, db: AsyncSession = Depends(get_db)):

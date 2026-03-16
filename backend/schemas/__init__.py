@@ -5,9 +5,14 @@ from datetime import datetime
 class AgentCreate(BaseModel):
     name: str
     instance_id: Optional[str] = None
+    connection_id: Optional[str] = None  # connection UUID to link WhatsApp
     prompt: str
     ai_provider: str = "openai"
     ai_model: str = "gpt-4o"
+    # Accept frontend field names as aliases
+    api_provider: Optional[str] = None
+    model: Optional[str] = None
+    api_key: Optional[str] = None
     ai_api_key: Optional[str] = None
     context_memory: int = 15
     delay_min: int = 3
