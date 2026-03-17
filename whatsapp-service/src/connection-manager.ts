@@ -233,6 +233,14 @@ async function _handleIncomingMessage(instanceId: string, msg: proto.IWebMessage
     return;
   }
 
+  // Marcar mensagem como lida — remove badge verde da lista de conversas
+  try {
+    const entry = instances.get(instanceId);
+    if (entry?.socket && msg.key) {
+      await entry.socket.readMessages([msg.key]);
+    }
+  } catch (_) { /* ignorar erros de read receipt */ }
+
   const isGroup = isJidGroup(from);
   const groupId = isGroup ? from : null;
 

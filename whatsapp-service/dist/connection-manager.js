@@ -238,6 +238,14 @@ async function _handleIncomingMessage(instanceId, msg) {
         logger.debug({ instanceId, from }, 'Anti-loop: ignoring message from recently-sent JID');
         return;
     }
+    // Marcar mensagem como lida — remove badge verde da lista de conversas
+    try {
+        const entry = instances.get(instanceId);
+        if (entry?.socket && msg.key) {
+            await entry.socket.readMessages([msg.key]);
+        }
+    }
+    catch (_) { /* ignorar erros de read receipt */ }
     const isGroup = (0, baileys_1.isJidGroup)(from);
     const groupId = isGroup ? from : null;
     // Extract text content
