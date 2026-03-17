@@ -19,6 +19,9 @@ COSTS = {
         "anthropic/claude-3-haiku": 0.00025,
         "anthropic/claude-3-sonnet": 0.003,
         "google/gemini-flash-1.5": 0.000075,
+        "google/gemini-2.0-flash-lite-001": 0.000075,
+        "google/gemini-2.5-flash": 0.00015,
+        "google/gemini-2.5-flash-preview": 0.00015,
         "google/gemini-pro-1.5": 0.00125,
         "deepseek/deepseek-chat": 0.00014,
         "meta-llama/llama-3.1-8b-instruct:free": 0.0,
@@ -40,13 +43,28 @@ async def get_ai_response(
     system_prompt: str,
     message_history: list[dict],
     user_message: str,
+    image_base64: Optional[str] = None,
+    image_mime: Optional[str] = None,
 ) -> dict:
     """
     Unified AI call. Returns {"response": str, "tokens_used": int, "cost": float}.
     Raises an exception on failure (caller handles retry).
     """
     start = time.monotonic()
-    messages = message_history + [{"role": "user", "content": user_message}]
+
+    # Se houver imagem, montar mensagem multimodal
+    if image_base64:
+        user_content = [
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{image_mime or 'image/jpeg'};base64,{image_base64}"}
+            },
+            {"type": "text", "text": user_message or "O que é este produto? Identifica e envia o link correcto."}
+        ]
+    else:
+        user_content = user_message
+
+    messages = message_history + [{"role": "user", "content": user_content}]
 
     if provider == "anthropic":
         result = await _anthropic_call(api_key, model, system_prompt, messages)

@@ -48,6 +48,8 @@ async def process_incoming(data: dict) -> None:
     group_id = data.get("groupId")
     timestamp = data.get("timestamp", int(datetime.now().timestamp()))
     from_me: bool = data.get("fromMe", False)
+    image_base64: str = data.get("imageBase64", "")
+    image_mime: str = data.get("imageMime", "image/jpeg")
 
     if not instance_id or not message:
         return
@@ -169,6 +171,8 @@ async def process_incoming(data: dict) -> None:
                 system_prompt=agent.prompt,
                 message_history=message_history,
                 user_message=message,
+                image_base64=image_base64 or None,
+                image_mime=image_mime or None,
             )
             break
         except Exception as exc:

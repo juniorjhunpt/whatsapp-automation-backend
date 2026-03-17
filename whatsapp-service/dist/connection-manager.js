@@ -245,23 +245,45 @@ async function _handleIncomingMessage(instanceId, msg) {
         msg.message?.extendedTextMessage?.text ||
         msg.message?.imageMessage?.caption ||
         msg.message?.videoMessage?.caption ||
+        msg.message?.stickerMessage?.fileSha256?.toString() || // sticker sem texto
         '';
-    if (!text.trim())
+    const msgType = Object.keys(msg.message ?? {})[0] ?? 'text';
+    const hasImage = msgType === 'imageMessage';
+    const hasVideo = msgType === 'videoMessage';
+    const hasMedia = hasImage || hasVideo;
+    // Requer texto OU imagem/vídeo
+    if (!text.trim() && !hasMedia)
         return;
     // Get sender name
     const fromName = msg.pushName ||
         (isGroup ? msg.key.participant?.split('@')[0] : from.split('@')[0]) ||
         'Unknown';
+    // Descarregar imagem/vídeo como base64 (só se for imagem)
+    let imageBase64;
+    let imageMime;
+    if (hasImage) {
+        try {
+            const buffer = await (0, baileys_1.downloadMediaMessage)(msg, 'buffer', {});
+            imageBase64 = buffer.toString('base64');
+            imageMime = msg.message?.imageMessage?.mimetype || 'image/jpeg';
+            logger.info({ instanceId, from }, 'Image downloaded for AI processing');
+        }
+        catch (err) {
+            logger.warn({ instanceId, err }, 'Failed to download image');
+        }
+    }
     const payload = {
         instanceId,
         from: isGroup ? (msg.key.participant ?? from) : from,
         fromName,
-        message: text.trim(),
-        messageType: Object.keys(msg.message ?? {})[0] ?? 'text',
+        message: text.trim() || (hasImage ? '[imagem enviada]' : hasVideo ? '[vídeo enviado]' : ''),
+        messageType: msgType,
         timestamp: msg.messageTimestamp ?? Math.floor(Date.now() / 1000),
         isGroup,
         groupId,
         messageId: msg.key.id ?? '',
+        imageBase64,
+        imageMime,
     };
     // Deduplicação — ignorar se o mesmo messageId já foi publicado nos últimos 60s
     if (msg.key.id) {

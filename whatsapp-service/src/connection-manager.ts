@@ -6,6 +6,7 @@ import makeWASocket, {
   isJidGroup,
   WASocket,
   proto,
+  downloadMediaMessage,
 } from '@whiskeysockets/baileys';
 import QRCode from 'qrcode';
 import pino from 'pino';
@@ -21,7 +22,7 @@ const RECONNECT_DELAY_MS = 30_000;
 
 // Mapa de JIDs para os quais o bot enviou mensagem recentemente (anti-loop)
 const recentlySentMap = new Map<string, number>();
-const SENT_COOLDOWN_MS = 15_000; // 15 segundos
+const SENT_COOLDOWN_MS = 2_000; // 2 segundos — só para bloquear echo imediato
 
 export function markRecentlySent(instanceId: string, jid: string): void {
   recentlySentMap.set(`${instanceId}:${jid}`, Date.now());
@@ -241,9 +242,16 @@ async function _handleIncomingMessage(instanceId: string, msg: proto.IWebMessage
     msg.message?.extendedTextMessage?.text ||
     msg.message?.imageMessage?.caption ||
     msg.message?.videoMessage?.caption ||
+    msg.message?.stickerMessage?.fileSha256?.toString() || // sticker sem texto
     '';
 
-  if (!text.trim()) return;
+  const msgType = Object.keys(msg.message ?? {})[0] ?? 'text';
+  const hasImage = msgType === 'imageMessage';
+  const hasVideo = msgType === 'videoMessage';
+  const hasMedia = hasImage || hasVideo;
+
+  // Requer texto OU imagem/vídeo
+  if (!text.trim() && !hasMedia) return;
 
   // Get sender name
   const fromName =
@@ -251,16 +259,33 @@ async function _handleIncomingMessage(instanceId: string, msg: proto.IWebMessage
     (isGroup ? msg.key.participant?.split('@')[0] : from.split('@')[0]) ||
     'Unknown';
 
+  // Descarregar imagem/vídeo como base64 (só se for imagem)
+  let imageBase64: string | undefined;
+  let imageMime: string | undefined;
+
+  if (hasImage) {
+    try {
+      const buffer = await downloadMediaMessage(msg, 'buffer', {}) as Buffer;
+      imageBase64 = buffer.toString('base64');
+      imageMime = msg.message?.imageMessage?.mimetype || 'image/jpeg';
+      logger.info({ instanceId, from }, 'Image downloaded for AI processing');
+    } catch (err) {
+      logger.warn({ instanceId, err }, 'Failed to download image');
+    }
+  }
+
   const payload: IncomingMessage = {
     instanceId,
     from: isGroup ? (msg.key.participant ?? from) : from,
     fromName,
-    message: text.trim(),
-    messageType: Object.keys(msg.message ?? {})[0] ?? 'text',
+    message: text.trim() || (hasImage ? '[imagem enviada]' : hasVideo ? '[vídeo enviado]' : ''),
+    messageType: msgType,
     timestamp: (msg.messageTimestamp as number) ?? Math.floor(Date.now() / 1000),
     isGroup,
     groupId,
     messageId: msg.key.id ?? '',
+    imageBase64,
+    imageMime,
   };
 
   // Deduplicação — ignorar se o mesmo messageId já foi publicado nos últimos 60s

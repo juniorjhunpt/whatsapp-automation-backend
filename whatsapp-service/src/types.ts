@@ -8,6 +8,8 @@ export interface IncomingMessage {
   timestamp: number;
   isGroup: boolean;
   groupId: string | null;
+  imageBase64?: string;   // base64 da imagem (se houver)
+  imageMime?: string;     // mime type da imagem
 }
 
 export interface OutgoingMessage {
