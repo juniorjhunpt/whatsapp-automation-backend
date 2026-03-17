@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.markRecentlySent = markRecentlySent;
 exports.getSocket = getSocket;
 exports.getInstances = getInstances;
 exports.getInstanceStatus = getInstanceStatus;
@@ -52,6 +53,22 @@ const logger = (0, pino_1.default)({ name: 'connection-manager', level: 'info' }
 const SESSIONS_DIR = path_1.default.resolve(process.env.SESSIONS_DIR || './sessions');
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY_MS = 30000;
+// Mapa de JIDs para os quais o bot enviou mensagem recentemente (anti-loop)
+const recentlySentMap = new Map();
+const SENT_COOLDOWN_MS = 15000; // 15 segundos
+function markRecentlySent(instanceId, jid) {
+    recentlySentMap.set(`${instanceId}:${jid}`, Date.now());
+}
+function _wasRecentlySent(instanceId, jid) {
+    const key = `${instanceId}:${jid}`;
+    const ts = recentlySentMap.get(key);
+    if (!ts)
+        return false;
+    if (Date.now() - ts < SENT_COOLDOWN_MS)
+        return true;
+    recentlySentMap.delete(key);
+    return false;
+}
 const instances = new Map();
 function getSocket(instanceId) {
     return instances.get(instanceId)?.socket;
@@ -216,6 +233,11 @@ async function _handleIncomingMessage(instanceId, msg) {
     const from = msg.key.remoteJid ?? '';
     if (!from || (0, baileys_1.isJidBroadcast)(from) || from === 'status@broadcast')
         return;
+    // Anti-loop: ignorar se enviámos mensagem para este JID nos últimos 15s
+    if (_wasRecentlySent(instanceId, from)) {
+        logger.debug({ instanceId, from }, 'Anti-loop: ignoring message from recently-sent JID');
+        return;
+    }
     const isGroup = (0, baileys_1.isJidGroup)(from);
     const groupId = isGroup ? from : null;
     // Extract text content

@@ -82,10 +82,12 @@ async function startRedisListener() {
         }
 
         // Dynamic import to get socket — access through manager function
-        const { getSocket } = await import('./connection-manager') as any;
+        const { getSocket, markRecentlySent } = await import('./connection-manager') as any;
         const sock = getSocket ? getSocket(instanceId) : null;
         if (sock) {
           const toJid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+          // Marcar JID como "enviado recentemente" antes de enviar — evita loop
+          if (markRecentlySent) markRecentlySent(instanceId, toJid);
           const sentMsg = await sock.sendMessage(toJid, { text: message });
           await redis.publish('whatsapp:sent', JSON.stringify({
             instanceId,

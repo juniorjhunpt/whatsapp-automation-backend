@@ -19,6 +19,23 @@ const SESSIONS_DIR = path.resolve(process.env.SESSIONS_DIR || './sessions');
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY_MS = 30_000;
 
+// Mapa de JIDs para os quais o bot enviou mensagem recentemente (anti-loop)
+const recentlySentMap = new Map<string, number>();
+const SENT_COOLDOWN_MS = 15_000; // 15 segundos
+
+export function markRecentlySent(instanceId: string, jid: string): void {
+  recentlySentMap.set(`${instanceId}:${jid}`, Date.now());
+}
+
+function _wasRecentlySent(instanceId: string, jid: string): boolean {
+  const key = `${instanceId}:${jid}`;
+  const ts = recentlySentMap.get(key);
+  if (!ts) return false;
+  if (Date.now() - ts < SENT_COOLDOWN_MS) return true;
+  recentlySentMap.delete(key);
+  return false;
+}
+
 interface InstanceEntry {
   socket: WASocket;
   status: InstanceStatus['status'];
@@ -208,6 +225,12 @@ async function _handleIncomingMessage(instanceId: string, msg: proto.IWebMessage
   if (msg.key.fromMe) return;
   const from = msg.key.remoteJid ?? '';
   if (!from || isJidBroadcast(from) || from === 'status@broadcast') return;
+
+  // Anti-loop: ignorar se enviámos mensagem para este JID nos últimos 15s
+  if (_wasRecentlySent(instanceId, from)) {
+    logger.debug({ instanceId, from }, 'Anti-loop: ignoring message from recently-sent JID');
+    return;
+  }
 
   const isGroup = isJidGroup(from);
   const groupId = isGroup ? from : null;
