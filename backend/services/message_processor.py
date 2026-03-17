@@ -61,18 +61,6 @@ async def process_incoming(data: dict) -> None:
     if from_jid in ("status@broadcast", "") or from_jid.endswith("@broadcast"):
         return
 
-    # Cooldown anti-loop: ignorar se já respondemos a este contacto nos últimos 8s
-    import redis.asyncio as _aioredis
-    from config import settings as _settings
-    _redis = _aioredis.from_url(_settings.redis_url)
-    _cooldown_key = f"cooldown:{instance_id}:{from_jid}"
-    _in_cooldown = await _redis.get(_cooldown_key)
-    if _in_cooldown:
-        logger.debug(f"Cooldown active for {from_jid} — skipping")
-        await _redis.aclose()
-        return
-    await _redis.aclose()
-
     async with AsyncSessionLocal() as db:
         # 1. Find agent for this instance
         result = await db.execute(select(Agent).where(Agent.instance_id == instance_id))
@@ -197,13 +185,6 @@ async def process_incoming(data: dict) -> None:
     # 13. Send reply via WhatsApp
     to = from_jid if not is_group else (group_id or from_jid)
     await publish("whatsapp:outgoing", {"instanceId": instance_id, "to": to, "message": response_text})
-
-    # Activar cooldown de 8s para este contacto — evita loop de resposta
-    import redis.asyncio as _aioredis2
-    from config import settings as _settings2
-    _redis2 = _aioredis2.from_url(_settings2.redis_url)
-    await _redis2.set(f"cooldown:{instance_id}:{from_jid}", "1", ex=3)
-    await _redis2.aclose()
 
     # 14. Save outgoing message
     async with AsyncSessionLocal() as db:
