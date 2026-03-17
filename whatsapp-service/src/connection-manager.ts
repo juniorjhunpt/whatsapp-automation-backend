@@ -11,7 +11,7 @@ import QRCode from 'qrcode';
 import pino from 'pino';
 import path from 'path';
 import fs from 'fs';
-import { publish } from './redis-client';
+import { publish, redis } from './redis-client';
 import { IncomingMessage, InstanceStatus } from './types';
 
 const logger = pino({ name: 'connection-manager', level: 'info' });
@@ -237,7 +237,19 @@ async function _handleIncomingMessage(instanceId: string, msg: proto.IWebMessage
     timestamp: (msg.messageTimestamp as number) ?? Math.floor(Date.now() / 1000),
     isGroup,
     groupId,
+    messageId: msg.key.id ?? '',
   };
+
+  // Deduplicação — ignorar se o mesmo messageId já foi publicado nos últimos 60s
+  if (msg.key.id) {
+    const dedupeKey = `dedup:${instanceId}:${msg.key.id}`;
+    const alreadySeen = await redis.get(dedupeKey);
+    if (alreadySeen) {
+      logger.debug({ instanceId, msgId: msg.key.id }, 'Duplicate message ignored');
+      return;
+    }
+    await redis.set(dedupeKey, '1', 'EX', 60);
+  }
 
   logger.info({ instanceId, from: payload.from, isGroup }, 'Incoming message');
   await publish('whatsapp:incoming', payload);

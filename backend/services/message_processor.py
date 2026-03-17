@@ -47,8 +47,18 @@ async def process_incoming(data: dict) -> None:
     is_group: bool = data.get("isGroup", False)
     group_id = data.get("groupId")
     timestamp = data.get("timestamp", int(datetime.now().timestamp()))
+    from_me: bool = data.get("fromMe", False)
 
     if not instance_id or not message:
+        return
+
+    # Ignorar mensagens enviadas pelo próprio bot — evita loop infinito
+    if from_me:
+        logger.debug(f"Ignoring own message from {instance_id}")
+        return
+
+    # Ignorar mensagens de status/broadcast
+    if from_jid in ("status@broadcast", "") or from_jid.endswith("@broadcast"):
         return
 
     async with AsyncSessionLocal() as db:
