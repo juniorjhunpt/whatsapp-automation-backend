@@ -51,6 +51,7 @@ def agent_to_out(a: Agent) -> dict:
         "is_active": a.is_active,
         "connection_id": getattr(a, 'connection_id', None),
         "instance_id": a.instance_id,
+        "has_api_key": bool(a.ai_api_key),   # indica se tem key guardada sem expô-la
         "created_at": a.created_at,
     }
 
@@ -74,13 +75,14 @@ async def create_agent(body: AgentIn, db: AsyncSession = Depends(get_db)):
         delay_min=body.delay_min or 3,
         delay_max=body.delay_max or 15,
     )
-    # Store connection_id in instance_id field if provided (lookup connection)
+    # Guardar connection_id e resolver instance_id
     if body.connection_id:
         from models import Connection
         r = await db.execute(select(Connection).where(Connection.id == body.connection_id))
         conn = r.scalar_one_or_none()
         if conn:
             agent.instance_id = conn.instance_id
+            agent.connection_id = body.connection_id
     db.add(agent)
     await db.commit()
     await db.refresh(agent)
@@ -119,14 +121,11 @@ async def update_agent(agent_id: str, body: AgentIn, db: AsyncSession = Depends(
         conn = r.scalar_one_or_none()
         if conn:
             agent.instance_id = conn.instance_id
+            agent.connection_id = body.connection_id
 
     await db.commit()
     await db.refresh(agent)
-    out = agent_to_out(agent)
-    # Return connection_id from the body for display
-    if body.connection_id:
-        out['connection_id'] = body.connection_id
-    return out
+    return agent_to_out(agent)
 
 @router.delete("/{agent_id}")
 async def delete_agent(agent_id: str, db: AsyncSession = Depends(get_db)):

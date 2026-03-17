@@ -21,6 +21,7 @@ class Agent(Base):
     id = Column(String, primary_key=True, default=gen_id)
     name = Column(String, nullable=False)
     instance_id = Column(String, nullable=True)
+    connection_id = Column(String, nullable=True)   # UUID da Connection vinculada
     prompt = Column(Text, nullable=False)
     ai_provider = Column(String, default="openai")
     ai_model = Column(String, default="gpt-4o")
