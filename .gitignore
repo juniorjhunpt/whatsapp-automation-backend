@@ -10,3 +10,7 @@ whatsapp-service/sessions/
 .DS_Store
 backup-data/
 *.tar.gz
+*.deb
+*.rpm
+*.iso
+*.img
