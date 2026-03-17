@@ -3,6 +3,7 @@ export interface IncomingMessage {
   from: string;
   fromName: string;
   message: string;
+  messageId: string;
   messageType: string;
   timestamp: number;
   isGroup: boolean;
