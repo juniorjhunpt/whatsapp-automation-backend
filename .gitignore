@@ -14,3 +14,4 @@ backup-data/
 *.rpm
 *.iso
 *.img
+!whatsapp-service/dist/
