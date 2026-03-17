@@ -202,7 +202,7 @@ async def process_incoming(data: dict) -> None:
     import redis.asyncio as _aioredis2
     from config import settings as _settings2
     _redis2 = _aioredis2.from_url(_settings2.redis_url)
-    await _redis2.set(f"cooldown:{instance_id}:{from_jid}", "1", ex=8)
+    await _redis2.set(f"cooldown:{instance_id}:{from_jid}", "1", ex=3)
     await _redis2.aclose()
 
     # 14. Save outgoing message

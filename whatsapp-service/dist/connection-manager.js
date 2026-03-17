@@ -55,7 +55,7 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY_MS = 30000;
 // Mapa de JIDs para os quais o bot enviou mensagem recentemente (anti-loop)
 const recentlySentMap = new Map();
-const SENT_COOLDOWN_MS = 15000; // 15 segundos
+const SENT_COOLDOWN_MS = 5000; // 5 segundos
 function markRecentlySent(instanceId, jid) {
     recentlySentMap.set(`${instanceId}:${jid}`, Date.now());
 }
