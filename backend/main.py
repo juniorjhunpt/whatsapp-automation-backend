@@ -11,9 +11,12 @@ from sqlalchemy import select, and_
 from config import settings
 from database import init_db, AsyncSessionLocal
 from models import Connection
+from models.email_models import EmailAccount, Email, EmailAgent  # registrar tabelas novas
 from routers import agents, connections, conversations, metrics, settings as settings_router
 from routers.auth import router as auth_router, hash_password
+from routers.email_router import router as email_router
 from services.redis_service import subscribe_forever
+from workers.email_worker import email_sync_loop
 from services.websocket_manager import ws_manager
 from services.message_processor import process_incoming
 
@@ -101,11 +104,18 @@ async def lifespan(app: FastAPI):
             logger.info(f"Utilizador admin criado — password: {_pw}")
     logger.info("Starting Redis event listener...")
     task = asyncio.create_task(redis_event_loop())
+    # Iniciar worker de e-mail (novo — não altera nada existente)
+    email_task = asyncio.create_task(email_sync_loop())
     yield
     # Shutdown
     task.cancel()
+    email_task.cancel()
     try:
         await task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await email_task
     except asyncio.CancelledError:
         pass
 
@@ -128,6 +138,8 @@ app.include_router(connections.router)
 app.include_router(conversations.router)
 app.include_router(metrics.router)
 app.include_router(settings_router.router)
+# Novos routers — Email
+app.include_router(email_router)
 
 
 @app.get("/api/health")
